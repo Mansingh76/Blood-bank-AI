@@ -1,0 +1,2 @@
+# Blood-bank-AI
+THIS IS A DATA SCIENCE PROJECT.
