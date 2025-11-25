@@ -1,0 +1,12 @@
+blood-bank-project/
+│
+├── app.py                          # Gradio dashboard
+├── eda.py                          # EDA analysis code
+├── model.py                        # ML clustering code
+├── utils.py                        # Data cleaning utilities
+├── requirements.txt                # Python dependencies
+├── README.md                       # Project documentation
+│
+└── data/
+    └── blood_banks.csv            # Your dataset (upload here)
+    └── cleaned_blood_banks.csv    # Generated after cleaning
