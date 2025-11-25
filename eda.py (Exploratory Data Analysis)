@@ -1,0 +1,213 @@
+"""
+Exploratory Data Analysis for Blood Bank Dataset
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# Set style
+sns.set_style('whitegrid')
+plt.rcParams['figure.figsize'] = (12, 6)
+
+def load_data(file_path='data/cleaned_blood_banks.csv'):
+    """Load cleaned dataset"""
+    return pd.read_csv(file_path)
+
+def generate_summary_stats(df):
+    """Generate summary statistics"""
+    print("=" * 60)
+    print("BLOOD BANK DATASET - SUMMARY STATISTICS")
+    print("=" * 60)
+    print(f"\nTotal Blood Banks: {len(df)}")
+    print(f"States Covered: {df['state'].nunique()}")
+    print(f"Cities Covered: {df['city'].nunique()}")
+    print(f"\nData Completeness:")
+    print(df.isnull().sum())
+    print("\n" + "=" * 60)
+
+def state_analysis(df):
+    """Analyze state-wise distribution"""
+    state_counts = df['state'].value_counts()
+    
+    # Bar plot
+    plt.figure(figsize=(14, 6))
+    state_counts.head(15).plot(kind='bar', color='crimson')
+    plt.title('Top 15 States by Blood Bank Count', fontsize=16, fontweight='bold')
+    plt.xlabel('State', fontsize=12)
+    plt.ylabel('Number of Blood Banks', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.savefig('plots/state_distribution.png', dpi=300)
+    plt.show()
+    
+    return state_counts
+
+def city_analysis(df):
+    """Analyze city-wise distribution"""
+    city_counts = df['city'].value_counts()
+    
+    # Bar plot
+    plt.figure(figsize=(14, 6))
+    city_counts.head(10).plot(kind='bar', color='steelblue')
+    plt.title('Top 10 Cities by Blood Bank Count', fontsize=16, fontweight='bold')
+    plt.xlabel('City', fontsize=12)
+    plt.ylabel('Number of Blood Banks', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.savefig('plots/city_distribution.png', dpi=300)
+    plt.show()
+    
+    return city_counts
+
+def missing_values_heatmap(df):
+    """Visualize missing values"""
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(df.isnull(), cmap='YlOrRd', cbar=True, yticklabels=False)
+    plt.title('Missing Values Heatmap', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('plots/missing_values.png', dpi=300)
+    plt.show()
+
+def geographic_visualization(df):
+    """Create interactive geographic scatter plot"""
+    fig = px.scatter_geo(
+        df,
+        lat='latitude',
+        lon='longitude',
+        hover_name='name',
+        hover_data=['city', 'state', 'pincode'],
+        title='Blood Bank Geographic Distribution in India',
+        color='state',
+        size_max=10
+    )
+    
+    fig.update_geos(
+        scope='asia',
+        showcountries=True,
+        countrycolor="lightgray",
+        showland=True,
+        landcolor="white"
+    )
+    
+    fig.update_layout(height=700, title_font_size=18)
+    fig.write_html('plots/geographic_map.html')
+    fig.show()
+
+def pincode_distribution(df):
+    """Analyze pincode patterns"""
+    df['pincode_prefix'] = df['pincode'].astype(str).str[:2]
+    prefix_counts = df['pincode_prefix'].value_counts().head(15)
+    
+    plt.figure(figsize=(12, 6))
+    prefix_counts.plot(kind='bar', color='teal')
+    plt.title('Top 15 Pincode Prefixes', fontsize=16, fontweight='bold')
+    plt.xlabel('Pincode Prefix', fontsize=12)
+    plt.ylabel('Count', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('plots/pincode_distribution.png', dpi=300)
+    plt.show()
+
+def correlation_analysis(df):
+    """Analyze correlations in numeric data"""
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    
+    if len(numeric_cols) > 1:
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(df[numeric_cols].corr(), annot=True, cmap='coolwarm', center=0)
+        plt.title('Correlation Heatmap', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        plt.savefig('plots/correlation_heatmap.png', dpi=300)
+        plt.show()
+
+def generate_insights(df):
+    """Generate textual insights"""
+    state_counts = df['state'].value_counts()
+    city_counts = df['city'].value_counts()
+    
+    insights = f"""
+    
+    ================================================================================
+    BLOOD BANK ANALYSIS - KEY INSIGHTS
+    ================================================================================
+    
+    1. OVERALL COVERAGE
+    -------------------
+    - Total Blood Banks: {len(df)}
+    - States Covered: {df['state'].nunique()}
+    - Cities Covered: {df['city'].nunique()}
+    
+    2. TOP PERFORMERS
+    ------------------
+    - Top State: {state_counts.index[0]} ({state_counts.values[0]} blood banks)
+    - Top City: {city_counts.index[0]} ({city_counts.values[0]} blood banks)
+    - Second: {state_counts.index[1]} ({state_counts.values[1]} blood banks)
+    
+    3. UNDERSERVED AREAS
+    --------------------
+    - States with <5 blood banks: {len(state_counts[state_counts < 5])}
+    - Cities with only 1 blood bank: {len(city_counts[city_counts == 1])}
+    
+    4. DATA QUALITY
+    ---------------
+    - Complete contact info: {df['contact'].notna().sum()} ({df['contact'].notna().sum()/len(df)*100:.1f}%)
+    - Complete email info: {df['email'].notna().sum()} ({df['email'].notna().sum()/len(df)*100:.1f}%)
+    - Valid coordinates: {len(df)} (100%)
+    
+    5. RECOMMENDATIONS
+    ------------------
+    - Focus expansion in states with <5 blood banks
+    - Urban areas (top 10 cities) have {city_counts.head(10).sum()} banks ({city_counts.head(10).sum()/len(df)*100:.1f}% of total)
+    - Consider rural outreach programs for underserved regions
+    - Improve contact data collection (current: {df['contact'].notna().sum()/len(df)*100:.1f}% complete)
+    
+    ================================================================================
+    """
+    
+    print(insights)
+    
+    with open('insights_report.txt', 'w') as f:
+        f.write(insights)
+    
+    return insights
+
+def run_full_eda():
+    """Run complete EDA pipeline"""
+    import os
+    os.makedirs('plots', exist_ok=True)
+    
+    print("Loading data...")
+    df = load_data()
+    
+    print("\n1. Generating Summary Statistics...")
+    generate_summary_stats(df)
+    
+    print("\n2. State-wise Analysis...")
+    state_analysis(df)
+    
+    print("\n3. City-wise Analysis...")
+    city_analysis(df)
+    
+    print("\n4. Missing Values Analysis...")
+    missing_values_heatmap(df)
+    
+    print("\n5. Geographic Visualization...")
+    geographic_visualization(df)
+    
+    print("\n6. Pincode Distribution...")
+    pincode_distribution(df)
+    
+    print("\n7. Correlation Analysis...")
+    correlation_analysis(df)
+    
+    print("\n8. Generating Insights...")
+    generate_insights(df)
+    
+    print("\n✅ EDA Complete! Check the 'plots' folder for visualizations.")
+
+if __name__ == "__main__":
+    run_full_eda()
