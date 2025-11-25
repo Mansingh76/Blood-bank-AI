@@ -1,0 +1,128 @@
+"""
+Data Cleaning Utilities for Blood Bank Dataset
+"""
+
+import pandas as pd
+import numpy as np
+import re
+
+def standardize_columns(df):
+    """Standardize column names to lowercase with underscores"""
+    df.columns = df.columns.str.lower().str.replace(' ', '_')
+    return df
+
+def clean_phone_number(phone):
+    """Clean and standardize phone numbers"""
+    if pd.isna(phone):
+        return np.nan
+    phone_str = str(phone)
+    digits = re.sub(r'\D', '', phone_str)
+    if len(digits) >= 10:
+        return digits[-10:]
+    return np.nan
+
+def clean_email(email):
+    """Clean and validate email addresses"""
+    if pd.isna(email):
+        return np.nan
+    email_str = str(email).strip().lower()
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if re.match(email_pattern, email_str):
+        return email_str
+    return np.nan
+
+def clean_pincode(pincode):
+    """Clean and standardize pin codes"""
+    if pd.isna(pincode):
+        return np.nan
+    pin_str = str(pincode)
+    digits = re.sub(r'\D', '', pin_str)
+    if len(digits) == 6:
+        return digits
+    return np.nan
+
+def clean_coordinates(lat, lon):
+    """Validate and clean latitude/longitude"""
+    try:
+        lat_float = float(lat)
+        lon_float = float(lon)
+        if -90 <= lat_float <= 90 and -180 <= lon_float <= 180:
+            return lat_float, lon_float
+    except:
+        pass
+    return np.nan, np.nan
+
+def clean_blood_bank_data(csv_path):
+    """
+    Complete data cleaning pipeline
+    
+    Parameters:
+    -----------
+    csv_path : str
+        Path to the blood_banks.csv file
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Cleaned dataset
+    """
+    print("Loading data...")
+    df = pd.read_csv(csv_path)
+    
+    print(f"Initial shape: {df.shape}")
+    
+    # Standardize columns
+    df = standardize_columns(df)
+    
+    # Clean contact numbers
+    print("Cleaning contact numbers...")
+    df['contact'] = df['contact'].apply(clean_phone_number)
+    
+    # Clean emails
+    print("Cleaning emails...")
+    df['email'] = df['email'].apply(clean_email)
+    
+    # Clean pincodes
+    print("Cleaning pincodes...")
+    df['pincode'] = df['pincode'].apply(clean_pincode)
+    
+    # Clean coordinates
+    print("Cleaning coordinates...")
+    df[['latitude', 'longitude']] = df.apply(
+        lambda row: clean_coordinates(row.get('latitude'), row.get('longitude')),
+        axis=1,
+        result_type='expand'
+    )
+    
+    # Clean text fields
+    text_cols = ['name', 'address', 'city', 'state']
+    for col in text_cols:
+        if col in df.columns:
+            df[col] = df[col].str.strip()
+            df[col] = df[col].replace('', np.nan)
+    
+    # Remove duplicates
+    print("Removing duplicates...")
+    initial_count = len(df)
+    df = df.drop_duplicates(subset=['name', 'city', 'state'], keep='first')
+    print(f"Removed {initial_count - len(df)} duplicates")
+    
+    # Remove rows with missing critical data
+    print("Removing rows with missing critical data...")
+    df = df.dropna(subset=['name', 'latitude', 'longitude'])
+    
+    print(f"Final shape: {df.shape}")
+    print("\nMissing values summary:")
+    print(df.isnull().sum())
+    
+    return df
+
+def save_cleaned_data(df, output_path='data/cleaned_blood_banks.csv'):
+    """Save cleaned dataset"""
+    df.to_csv(output_path, index=False)
+    print(f"\nCleaned data saved to: {output_path}")
+
+if __name__ == "__main__":
+    # Example usage
+    df_cleaned = clean_blood_bank_data('data/blood_banks.csv')
+    save_cleaned_data(df_cleaned)
