@@ -1,0 +1,211 @@
+"""
+Gradio Dashboard for Blood Bank Analysis
+"""
+
+import gradio as gr
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+from utils import clean_blood_bank_data
+from model import perform_clustering, prepare_features
+import os
+
+# Create directories
+os.makedirs('data', exist_ok=True)
+os.makedirs('plots', exist_ok=True)
+
+def process_and_analyze(file):
+    """Process uploaded CSV and perform analysis"""
+    if file is None:
+        return "Please upload a CSV file"
+    
+    # Save uploaded file
+    df = pd.read_csv(file.name)
+    df.to_csv('data/blood_banks.csv', index=False)
+    
+    # Clean data
+    df_clean = clean_blood_bank_data('data/blood_banks.csv')
+    df_clean.to_csv('data/cleaned_blood_banks.csv', index=False)
+    
+    # Generate summary
+    summary = f"""
+    ✅ Data Processing Complete!
+    
+    📊 Summary Statistics:
+    - Total Blood Banks: {len(df_clean)}
+    - States Covered: {df_clean['state'].nunique()}
+    - Cities Covered: {df_clean['city'].nunique()}
+    - Data Completeness: {(1 - df_clean.isnull().sum().sum() / df_clean.size) * 100:.1f}%
+    """
+    
+    return summary
+
+def create_state_chart():
+    """Create state-wise distribution chart"""
+    df = pd.read_csv('data/cleaned_blood_banks.csv')
+    state_counts = df['state'].value_counts().head(15)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    state_counts.plot(kind='bar', color='crimson', ax=ax)
+    ax.set_title('Top 15 States by Blood Bank Count', fontsize=14, fontweight='bold')
+    ax.set_xlabel('State', fontsize=11)
+    ax.set_ylabel('Number of Blood Banks', fontsize=11)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    
+    return fig
+
+def create_city_chart():
+    """Create city-wise distribution chart"""
+    df = pd.read_csv('data/cleaned_blood_banks.csv')
+    city_counts = df['city'].value_counts().head(10)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    city_counts.plot(kind='bar', color='steelblue', ax=ax)
+    ax.set_title('Top 10 Cities by Blood Bank Count', fontsize=14, fontweight='bold')
+    ax.set_xlabel('City', fontsize=11)
+    ax.set_ylabel('Number of Blood Banks', fontsize=11)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    
+    return fig
+
+def create_geo_map():
+    """Create interactive geographic map"""
+    df = pd.read_csv('data/cleaned_blood_banks.csv')
+    
+    fig = px.scatter_geo(
+        df,
+        lat='latitude',
+        lon='longitude',
+        hover_name='name',
+        hover_data=['city', 'state'],
+        title='Blood Bank Geographic Distribution',
+        color='state',
+        size_max=10
+    )
+    
+    fig.update_geos(scope='asia', showcountries=True)
+    fig.update_layout(height=600)
+    
+    return fig
+
+def run_clustering():
+    """Perform clustering and return results"""
+    df = pd.read_csv('data/cleaned_blood_banks.csv')
+    df_clustered, kmeans = perform_clustering(df, n_clusters=5)
+    df_clustered.to_csv('data/clustered_blood_banks.csv', index=False)
+    
+    # Create cluster visualization
+    fig = px.scatter_geo(
+        df_clustered,
+        lat='latitude',
+        lon='longitude',
+        color='cluster',
+        hover_name='name',
+        hover_data=['city', 'state'],
+        title='Blood Bank Clusters',
+        color_continuous_scale='Viridis'
+    )
+    
+    fig.update_geos(scope='asia', showcountries=True)
+    fig.update_layout(height=600)
+    
+    summary = f"""
+    ✅ Clustering Complete!
+    
+    📍 Cluster Summary:
+    - Number of Clusters: 5
+    - Clustering Method: KMeans
+    - Features: Latitude, Longitude
+    
+    Clustered data saved to: data/clustered_blood_banks.csv
+    """
+    
+    return summary, fig
+
+def view_dataset(state_filter, city_filter):
+    """View filtered dataset"""
+    df = pd.read_csv('data/cleaned_blood_banks.csv')
+    
+    if state_filter != "All":
+        df = df[df['state'] == state_filter]
+    
+    if city_filter != "All":
+        df = df[df['city'] == city_filter]
+    
+    return df.head(100)
+
+# Build Gradio Interface
+with gr.Blocks(title="Blood Bank Analysis Dashboard", theme=gr.themes.Soft()) as app:
+    gr.Markdown("""
+    # 🏥 Blood Bank Analysis Dashboard
+    ### Complete Data Science Project - EDA, ML Clustering & Insights
+    """)
+    
+    with gr.Tab("📤 Upload & Process"):
+        with gr.Row():
+            file_input = gr.File(label="Upload blood_banks.csv", file_types=[".csv"])
+            process_btn = gr.Button("Process Data", variant="primary")
+        
+        output_summary = gr.Textbox(label="Processing Summary", lines=10)
+        process_btn.click(process_and_analyze, inputs=file_input, outputs=output_summary)
+    
+    with gr.Tab("📊 Overview"):
+        gr.Markdown("### Summary Statistics & Key Metrics")
+        with gr.Row():
+            state_chart = gr.Plot(label="State Distribution")
+            city_chart = gr.Plot(label="City Distribution")
+        
+        refresh_btn = gr.Button("Generate Charts")
+        refresh_btn.click(
+            lambda: (create_state_chart(), create_city_chart()),
+            inputs=None,
+            outputs=[state_chart, city_chart]
+        )
+    
+    with gr.Tab("🗺️ Geographic Visualization"):
+        gr.Markdown("### Interactive Geographic Map")
+        geo_map = gr.Plot(label="Blood Bank Locations")
+        map_btn = gr.Button("Generate Map")
+        map_btn.click(create_geo_map, inputs=None, outputs=geo_map)
+    
+    with gr.Tab("🤖 ML Clustering"):
+        gr.Markdown("### KMeans Clustering Analysis")
+        cluster_btn = gr.Button("Run Clustering", variant="primary")
+        cluster_summary = gr.Textbox(label="Cluster Summary", lines=8)
+        cluster_map = gr.Plot(label="Cluster Visualization")
+        
+        cluster_btn.click(
+            run_clustering,
+            inputs=None,
+            outputs=[cluster_summary, cluster_map]
+        )
+    
+    with gr.Tab("📋 Dataset Viewer"):
+        gr.Markdown("### View & Filter Data")
+        
+        df_temp = pd.DataFrame()
+        try:
+            df_temp = pd.read_csv('data/cleaned_blood_banks.csv')
+        except:
+            pass
+        
+        states = ["All"] + sorted(df_temp['state'].unique().tolist()) if not df_temp.empty else ["All"]
+        cities = ["All"] + sorted(df_temp['city'].unique().tolist()) if not df_temp.empty else ["All"]
+        
+        with gr.Row():
+            state_dropdown = gr.Dropdown(choices=states, value="All", label="Filter by State")
+            city_dropdown = gr.Dropdown(choices=cities, value="All", label="Filter by City")
+        
+        dataset_table = gr.Dataframe(label="Blood Bank Data", wrap=True)
+        view_btn = gr.Button("View Data")
+        view_btn.click(
+            view_dataset,
+            inputs=[state_dropdown, city_dropdown],
+            outputs=dataset_table
+        )
+
+if __name__ == "__main__":
+    app.launch(share=True)
